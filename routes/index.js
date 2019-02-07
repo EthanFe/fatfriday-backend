@@ -30,8 +30,8 @@ async function setupSockets() {
 setupSockets()
 
 const registerSocketEvents = (io, socket) => {
-  socket.on('createNewEvent', async function({name, username, date}) {
-    await createEvent(name, username, date)
+  socket.on('createNewEvent', async function({name, user_id, date}) {
+    await createEvent(name, user_id, date)
     sendEventsListToAllClients(io)
   });
 
@@ -61,11 +61,11 @@ const sendEventsListToAllClients = async (io) => {
   io.emit("eventList", events)
 }
 
-const createEvent = (eventName, userName, date) => {
+const createEvent = (eventName, user_id, date) => {
   // insert("events", ["created_by", "name", "event_date", "created_on"], [0, "some dude", new Date().getTime() / 1000, new Date().getTime() / 1000])
   return db.none("INSERT INTO events (created_by, name, event_date, created_on) VALUES($1,$2,to_timestamp($3),to_timestamp($4));",
         [
-          0,
+          user_id,
           eventName,
           date / 1000,
           new Date().getTime() / 1000
