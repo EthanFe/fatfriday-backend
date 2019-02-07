@@ -1,19 +1,15 @@
+const {db} = require('../db-direct-postgres.js')
+
 var express = require('express');
 const app = express()
 // app.use('/', express.static('build'))
 
 var router = express.Router();
 
-/* GET home page. */
-router.get('/', function(req, res, next) {
-  res.render('index', { title: 'Fat Friday' });
-});
-
 module.exports = router;
 
 async function setupSockets() {
   const http = require('http').Server(app);
-  // const io = require('socket.io')(http);
 
   const port = 3000
   const server = http.listen(port, function(){
@@ -22,24 +18,55 @@ async function setupSockets() {
   const io = require('socket.io').listen(server);
 
   io.on('connection', async (socket) => {
-    console.log(`registering for message updates to ${socket.id}`)
-    // io.to(socket.id).emit('initialLoadData', game.currentState)
-
-    console.log('a user connected');
-
-    socket.on('createNewEvent', async function({name, username}) {
-      console.log(name, username)
-      // const message = await addComment(repoID, commitURL, commentContent, topic, username, accessToken)
-      // const user = await message.user
-      io.emit('eventCreated', {eventName: name, creatorUsername: username})
-    });
-
-    socket.on('disconnect', function(){
-      console.log('user disconnected');
-    });
+    console.log(`New client connected, creating socket connection with socket id ${socket.id}`)
+    registerSocketEvents(socket)
+    sendEventsListToClient(socket)
   });
 
   console.log("Socket is ready.")
 }
 
 setupSockets()
+
+const registerSocketEvents = (socket) => {
+  socket.on('createNewEvent', async function({name, username}) {
+    await createEvent(name, username)
+    sendEventsListToClient(socket)
+    // io.emit('eventCreated', {eventName: name, creatorUsername: username})
+  });
+
+  socket.on('disconnect', function(){
+    console.log('user disconnected');
+  });
+}
+
+const sendEventsListToClient = async (socket) => {
+  const events = await getEventsList()
+  socket.emit("eventList", events)
+}
+
+const createEvent = (eventName, userName) => {
+  // insert("events", ["created_by", "name", "event_date", "created_on"], [0, "some dude", new Date().getTime() / 1000, new Date().getTime() / 1000])
+  return db.none("INSERT INTO events (created_by, name, event_date, created_on) VALUES($1,$2,to_timestamp($3),to_timestamp($4));",
+        [
+          0,
+          eventName,
+          new Date().getTime() / 1000,
+          new Date().getTime() / 1000
+        ])
+  .catch(function (error) { console.log('ERROR:', error) })
+}
+
+const getEventsList = () => {
+  return new Promise((resolve, reject) => {
+    db.many("SELECT * FROM events")
+    .then(data => resolve(data))
+    .catch(error => resolve([]))
+  })
+}
+
+// sendEventListToAllClients = async () => {
+//   console.log(io.emit)
+//   const events = await db.many("SELECT * FROM events")
+//   io.emit("eventList", events)
+// }
