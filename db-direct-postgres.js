@@ -18,7 +18,7 @@ db.none(createEventsTableQuery)
 console.log("Initializing users table")
 const createUsersTableQuery = `
   CREATE TABLE IF NOT EXISTS users(
-    name VARCHAR (50) NOT NULL check (name <> ''),
+    name VARCHAR (50) UNIQUE NOT NULL check (name <> ''),
     address VARCHAR (50),
     created_on TIMESTAMP NOT NULL,
     id SERIAL PRIMARY KEY
