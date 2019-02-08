@@ -16,6 +16,7 @@ const setupSockets = async () => {
     console.log(`New client connected, creating socket connection with socket id ${socket.id}`)
     registerSocketEvents(io, socket)
     sendEventsListToClient(socket)
+    sendUsersListToClient(socket)
   });
 
   console.log("Socket is ready.")
@@ -40,6 +41,10 @@ const registerSocketEvents = (io, socket) => {
     }
   })
 
+  socket.on('inviteUserToEvent', ({username, event_id}) => {
+    console.log(`Inviting user ${username} to event with id ${event_id}` )
+  })
+
   socket.on('disconnect', function(){
     console.log('user disconnected');
   });
@@ -53,6 +58,16 @@ const sendEventsListToClient = async (socket) => {
 const sendEventsListToAllClients = async (io) => {
   const events = await getEventsList()
   io.emit("eventList", events)
+}
+
+const sendUsersListToClient = async (socket) => {
+  let users = await getUsersList()
+  users = users.map(user => {
+    delete user.created_on
+    delete user.address
+    return user
+  })
+  socket.emit("invitableUsersList", users)
 }
 
 const createEvent = (eventName, user_id, date) => {
@@ -78,6 +93,12 @@ const createEvent = (eventName, user_id, date) => {
 const getEventsList = () => {
   return new Promise((resolve) => {
     resolve(selectMultiple({tableName: "events"}))
+  })
+}
+
+const getUsersList = () => {
+  return new Promise((resolve) => {
+    resolve(selectMultiple({tableName: "users"}))
   })
 }
 
