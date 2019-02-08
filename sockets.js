@@ -15,8 +15,7 @@ const setupSockets = async () => {
   io.on('connection', async (socket) => {
     console.log(`New client connected, creating socket connection with socket id ${socket.id}`)
     registerSocketEvents(io, socket)
-    sendEventsListToClient(socket)
-    sendUsersListToClient(socket)
+    sendInitialDataToConnectingClient(socket)
   });
 
   console.log("Socket is ready.")
@@ -41,8 +40,10 @@ const registerSocketEvents = (io, socket) => {
     }
   })
 
-  socket.on('inviteUserToEvent', ({username, event_id}) => {
-    console.log(`Inviting user ${username} to event with id ${event_id}` )
+  socket.on('inviteUserToEvent', async ({user_id, event_id}) => {
+    console.log(`Inviting user with id ${user_id} to event with id ${event_id}` )
+    await createInvitation(user_id, event_id)
+    sendInvitationsListToAllClients(io)
   })
 
   socket.on('disconnect', function(){
@@ -50,9 +51,20 @@ const registerSocketEvents = (io, socket) => {
   });
 }
 
-const sendEventsListToClient = async (socket) => {
+const sendInitialDataToConnectingClient = async (socket) => {
   const events = await getEventsList()
-  socket.emit("eventList", events)
+  let users = await getUsersList()
+  users = users.map(user => {
+    delete user.created_on
+    delete user.address
+    return user
+  })
+  let invites = await getInvitesList()
+  invites = invites.map(invite => {
+    delete invite.created_on
+    return invite
+  })
+  socket.emit("initialData", {events, users, invites})
 }
 
 const sendEventsListToAllClients = async (io) => {
@@ -60,14 +72,13 @@ const sendEventsListToAllClients = async (io) => {
   io.emit("eventList", events)
 }
 
-const sendUsersListToClient = async (socket) => {
-  let users = await getUsersList()
-  users = users.map(user => {
-    delete user.created_on
-    delete user.address
-    return user
+const sendInvitationsListToAllClients = async (io) => {
+  let invites = await getInvitesList()
+  invites = invites.map(invite => {
+    delete invite.created_on
+    return invite
   })
-  socket.emit("invitableUsersList", users)
+  io.emit("invitesList", invites)
 }
 
 const createEvent = (eventName, user_id, date) => {
@@ -102,6 +113,12 @@ const getUsersList = () => {
   })
 }
 
+const getInvitesList = () => {
+  return new Promise((resolve) => {
+    resolve(selectMultiple({tableName: "event_invites"}))
+  })
+}
+
 const loginUser = async (username) => {
   let user = await selectOne({tableName: "users", keys: ["name"], values: [username]})
   if (user === null) {
@@ -127,4 +144,25 @@ const createNewUser = async (username) => {
   } else {
     return null
   }
+}
+
+const createInvitation = async (user_id, event_id) => {
+  let [error, result] = await insert({tableName: "event_invites", columns: [
+    "user_id",
+    "event_id",
+    "accepted",
+    "created_on"
+  ], values: [
+    user_id,
+    event_id,
+    false,
+    new Date().getTime() / 1000
+  ],
+  modifiers: [
+    null,
+    null,
+    null,
+    "to_timestamp"
+  ]})
+  return error === null
 }
