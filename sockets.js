@@ -1,4 +1,4 @@
-const {insert, selectOne, selectMultiple} = require('./dbfunctions.js')
+const {insert, selectOne, selectMultiple, update} = require('./dbfunctions.js')
 
 var express = require('express');
 const app = express()
@@ -43,6 +43,12 @@ const registerSocketEvents = (io, socket) => {
   socket.on('inviteUserToEvent', async ({user_id, event_id}) => {
     console.log(`Inviting user with id ${user_id} to event with id ${event_id}` )
     await createInvitation(user_id, event_id)
+    sendInvitationsListToAllClients(io)
+  })
+
+  socket.on('acceptInvitation', async ({user_id, event_id}) => {
+    console.log(`User with id ${user_id} accepting invitation to event with id ${event_id}` )
+    await acceptInvitation(user_id, event_id)
     sendInvitationsListToAllClients(io)
   })
 
@@ -163,6 +169,16 @@ const createInvitation = async (user_id, event_id) => {
     null,
     null,
     "to_timestamp"
+  ]})
+  return error === null
+}
+
+const acceptInvitation = async (user_id, event_id) => {
+  const [error, result] = await update({tableName: "event_invites", conditions: [
+    {name: "user_id", value: user_id},
+    {name: "event_id", value: event_id}
+  ], valuesToSet: [
+    {name: "accepted", value: true}
   ]})
   return error === null
 }

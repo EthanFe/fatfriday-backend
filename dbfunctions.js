@@ -38,4 +38,19 @@ const selectMultiple = async ({tableName, keys = [], values = []}) => {
   return user || []
 }
 
-module.exports = { insert, selectOne, selectMultiple }
+const update = async ({tableName, conditions = [], valuesToSet = []}) => {
+  let query = `UPDATE ${tableName} SET `
+
+  query += valuesToSet.map((column, index) => {
+    return `${column.name} = $${index + 1}`
+  }).join(", ")
+
+  query += ' WHERE '
+
+  query += conditions.map((condition, index) => {
+    return `${condition.name}=$${valuesToSet.length + index + 1}`
+  }).join(" AND ")
+  return catchAsync(db.none(query, valuesToSet.map(column => column.value).concat(conditions.map(condition => condition.value))))
+}
+
+module.exports = { insert, selectOne, selectMultiple, update }
