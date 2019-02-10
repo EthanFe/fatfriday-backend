@@ -1,4 +1,5 @@
 const {insert, selectOne, selectMultiple, update} = require('./dbfunctions.js')
+const fetch = require('node-fetch');
 
 var express = require('express');
 const app = express()
@@ -50,6 +51,23 @@ const registerSocketEvents = (io, socket) => {
     console.log(`User with id ${user_id} accepting invitation to event with id ${event_id}` )
     await acceptInvitation(user_id, event_id)
     sendInvitationsListToAllClients(io)
+  })
+
+  socket.on('placeTextEntered', async ({text}) => {
+    console.log(`Searching for places with name ${text}`)
+    
+    const apiKey = process.env.GOOGLE_API_KEY
+    const latitude = "29.747055"
+    const longitude = "-95.372617"
+    const response = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${text}&key=${apiKey}&location=${latitude},${longitude}&types=establishment`)
+    const result = await response.json()
+    if (result.status === "OK") {
+      const locationNames = result.predictions.map(prediction => prediction.description)
+      console.log(`Returning ${locationNames.length} matches`)
+      socket.emit("placeNameMatches", locationNames)
+    } else {
+      console.error(`Place search request failed for unclear reasons because I don't write clear error messages`)
+    }
   })
 
   socket.on('disconnect', function(){
