@@ -19,11 +19,11 @@ const selectOne = async ({tableName, keys = [], values = []}) => {
   if (keys.length > 0) {
     query += " WHERE " + keys.map((key, index) => `${key}=$${index + 1}`)
   }
-  let [error, user] = await catchAsync(db.one(query, values))
+  let [error, result] = await catchAsync(db.one(query, values))
   if (error) {
     console.error('Error in db selectOne:', error)
   }
-  return user
+  return result
 }
 
 const selectMultiple = async ({tableName, keys = [], values = []}) => {
@@ -31,11 +31,11 @@ const selectMultiple = async ({tableName, keys = [], values = []}) => {
   if (keys.length > 0) {
     query += " WHERE " + keys.map((key, index) => `${key}=$${index + 1}`)
   }
-  let [error, user] = await catchAsync(db.many(query, values))
+  let [error, result] = await catchAsync(db.many(query, values))
   if (error) {
     console.error('Error in db selectMultiple:', error)
   }
-  return user || []
+  return result || []
 }
 
 const update = async ({tableName, conditions = [], valuesToSet = []}) => {

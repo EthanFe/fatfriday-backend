@@ -62,12 +62,18 @@ const registerSocketEvents = (io, socket) => {
     const response = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${text}&key=${apiKey}&location=${latitude},${longitude}&types=establishment`)
     const result = await response.json()
     if (result.status === "OK") {
-      const locationNames = result.predictions.map(prediction => prediction.description)
-      console.log(`Returning ${locationNames.length} matches`)
-      socket.emit("placeNameMatches", locationNames)
+      const locations = result.predictions.map(prediction => ({placeName: prediction.description, placeID: prediction.place_id}))
+      console.log(`Returning ${locations.length} matches`)
+      socket.emit("placeNameMatches", locations)
     } else {
       console.error(`Place search request failed for unclear reasons because I don't write clear error messages`)
     }
+  })
+
+  socket.on('suggestPlace', async ({user_id, place_id, place_name, event_id}) => {
+    console.log(`User with id ${user_id} trying to suggest "${place_name}" (id ${place_id}) for event with id ${event_id}`)
+    await suggestPlace(user_id, event_id, place_id, place_name)
+    sendPlaceSuggestionsToAllClients(io)
   })
 
   socket.on('disconnect', function(){
@@ -88,7 +94,8 @@ const sendInitialDataToConnectingClient = async (socket) => {
     delete invite.created_on
     return invite
   })
-  socket.emit("initialData", {events, users, invites})
+  const placeSuggestions = await getPlaceSuggestions()
+  socket.emit("initialData", {events, users, invites, placeSuggestions})
 }
 
 const sendEventsListToAllClients = async (io) => {
@@ -103,6 +110,11 @@ const sendInvitationsListToAllClients = async (io) => {
     return invite
   })
   io.emit("invitesList", invites)
+}
+
+const sendPlaceSuggestionsToAllClients = async (io) => {
+  const placeSuggestions = await getPlaceSuggestions()
+  io.emit("placeSuggestions", placeSuggestions)
 }
 
 const createEvent = (eventName, user_id, date) => {
@@ -141,6 +153,22 @@ const getInvitesList = () => {
   return new Promise((resolve) => {
     resolve(selectMultiple({tableName: "event_invites"}))
   })
+}
+
+const getPlaceSuggestions = () => {
+  return new Promise(async (resolve) => {
+    const placeSuggestions = await selectMultiple({tableName: "place_suggestions"})
+    placeSuggestionsWithNames = await Promise.all(placeSuggestions.map(async (place) => {
+      place.name = await getNameOfPlaceSuggestion(place)
+      return place
+    }))
+    resolve(placeSuggestionsWithNames)
+  })
+}
+
+const getNameOfPlaceSuggestion = async (suggestion) => {
+  const place = await selectOne({tableName: "places", keys: ["google_place_id"], values: [suggestion.google_place_id]})
+  return place.place_name
 }
 
 const loginUser = async (username) => {
@@ -199,4 +227,56 @@ const acceptInvitation = async (user_id, event_id) => {
     {name: "accepted", value: true}
   ]})
   return error === null
+}
+
+const suggestPlace = async (user_id, event_id, place_id, place_name) => {
+  // user_id is unused but should be used to verify whether user is actually a member of event/allowed to suggest places
+
+  // this throws an error because it doesn't find anything. lol
+  let place = await selectOne({tableName: "places", keys: ["google_place_id"], values: [place_id]})
+  if (place === null) {
+    place = await createNewPlace(place_id, place_name)
+  }
+  if (place === null) {
+    console.error("Creating new place entry failed. Did not create new place suggestion.")
+    return false
+  } else {
+    let [error, result] = await insert({tableName: "place_suggestions", columns: [
+      "event_id",
+      "google_place_id",
+      "created_on"
+    ], values: [
+      event_id,
+      place_id,
+      new Date().getTime() / 1000
+    ],
+    modifiers: [
+      null,
+      null,
+      "to_timestamp"
+    ]})
+    return error === null
+  }
+}
+
+const createNewPlace = async (place_id, place_name) => {
+  let [error, result] = await insert({tableName: "places", columns: [
+    "google_place_id",
+    "place_name",
+    "created_on"
+  ], values: [
+    place_id,
+    place_name,
+    new Date().getTime() / 1000
+  ],
+  modifiers: [
+    null,
+    null,
+    "to_timestamp"
+  ]})
+  if (error === null) {
+    return await selectOne({tableName: "places", keys: ["google_place_id"], values: [place_id]})
+  } else {
+    return null
+  }
 }
