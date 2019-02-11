@@ -17,7 +17,7 @@ const stringifyArray = (columns) => {
 const selectOne = async ({tableName, keys = [], values = []}) => {
   let query = `SELECT * FROM ${tableName}`
   if (keys.length > 0) {
-    query += " WHERE " + keys.map((key, index) => `${key}=$${index + 1}`)
+    query += " WHERE " + keys.map((key, index) => `${key}=$${index + 1}`).join(" AND ")
   }
   let [error, result] = await catchAsync(db.one(query, values))
   if (error) {
@@ -29,7 +29,7 @@ const selectOne = async ({tableName, keys = [], values = []}) => {
 const selectMultiple = async ({tableName, keys = [], values = []}) => {
   let query = `SELECT * FROM ${tableName}`
   if (keys.length > 0) {
-    query += " WHERE " + keys.map((key, index) => `${key}=$${index + 1}`)
+    query += " WHERE " + keys.map((key, index) => `${key}=$${index + 1}`).join(" AND ")
   }
   let [error, result] = await catchAsync(db.many(query, values))
   if (error) {

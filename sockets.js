@@ -76,6 +76,12 @@ const registerSocketEvents = (io, socket) => {
     sendPlaceSuggestionsToAllClients(io)
   })
 
+  socket.on('voteForPlace', async ({user_id, place_id, event_id}) => {
+    console.log(`User with id ${user_id} trying to vote for place with id ${place_id}) for event with id ${event_id}`)
+    await voteForPlace(user_id, event_id, place_id)
+    sendPlaceSuggestionsToAllClients(io)
+  })
+
   socket.on('disconnect', function(){
     console.log('user disconnected');
   });
@@ -157,18 +163,35 @@ const getInvitesList = () => {
 
 const getPlaceSuggestions = () => {
   return new Promise(async (resolve) => {
-    const placeSuggestions = await selectMultiple({tableName: "place_suggestions"})
-    placeSuggestionsWithNames = await Promise.all(placeSuggestions.map(async (place) => {
-      place.name = await getNameOfPlaceSuggestion(place)
-      return place
+    let placeSuggestions = await selectMultiple({tableName: "place_suggestions"})
+
+    placeSuggestions = await Promise.all(placeSuggestions.map(async (suggestion) => {
+      suggestion.name = await getNameOfPlaceSuggestion(suggestion)
+      return suggestion
     }))
-    resolve(placeSuggestionsWithNames)
+    placeSuggestions = await Promise.all(placeSuggestions.map(async (suggestion) => {
+      suggestion.votes = await getVotesForPlace(suggestion)
+      return suggestion
+    }))
+    resolve(placeSuggestions)
   })
 }
 
 const getNameOfPlaceSuggestion = async (suggestion) => {
   const place = await selectOne({tableName: "places", keys: ["google_place_id"], values: [suggestion.google_place_id]})
   return place.place_name
+}
+
+const getVotesForPlace = (suggestion) => {
+  return new Promise(async (resolve) => {
+    // this will probably throw an error if there are no votes. i really gotta fix selectmultiple
+    const votes = await selectMultiple({
+      tableName: "place_votes",
+      keys: ["google_place_id", "event_id"],
+      values: [suggestion.google_place_id, suggestion.event_id]
+    })
+    resolve(votes.length)
+  })
 }
 
 const loginUser = async (username) => {
@@ -279,4 +302,25 @@ const createNewPlace = async (place_id, place_name) => {
   } else {
     return null
   }
+}
+
+const voteForPlace = async (user_id, event_id, place_id) => {
+  let [error, result] = await insert({tableName: "place_votes", columns: [
+    "user_id",
+    "event_id",
+    "google_place_id",
+    "created_on"
+  ], values: [
+    user_id,
+    event_id,
+    place_id,
+    new Date().getTime() / 1000
+  ],
+  modifiers: [
+    null,
+    null,
+    null,
+    "to_timestamp"
+  ]})
+  return error === null
 }
