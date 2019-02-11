@@ -1,4 +1,5 @@
 const {db} = require('./dbfunctions.js')
+const {jwt} = require('./jwt.js')
 const {createNewUser, attemptLogin} = require ('./authentication.js')
 const fetch = require('node-fetch');
 
@@ -26,82 +27,101 @@ const setupSockets = async () => {
 module.exports = {setupSockets};
 
 const registerSocketEvents = (io, socket) => {
-  socket.on('createNewEvent', async function({name, user_id, date}) {
-    await createEvent(name, user_id, date)
-    sendEventsListToAllClients(io)
-  });
-
   socket.on('login', async ({username, password}) => {
     console.log(`User attempting to login with name "${username}"`)
     const user = await attemptLogin(username, password)
-    if (user !== null) {
-      delete user.created_on
-      socket.emit("loggedIn", user)
-    } else {
-      socket.emit("loginFailed") // this isn't handled lol
-    }
+    emitLoginResult(user, socket)
   })
 
   socket.on('signUp', async ({username, password}) => {
     console.log(`User attempting to sign up with name "${username}"`)
     const user = await createNewUser(username, password)
-    if (user !== null) {
-      delete user.created_on
-      socket.emit("loggedIn", user)
-    } else {
-      socket.emit("signUpFailed") // this isn't handled lol
-    }
+    emitLoginResult(user, socket)
   })
 
-  socket.on('inviteUserToEvent', async ({user_id, event_id}) => {
+  socket.on('createNewEvent', async function({token, name, user_id, date}) {
+    const verified = jwt.verify(token)
+    if (verified) {
+      await createEvent(name, user_id, date)
+      sendEventsListToAllClients(io)
+    }
+  });
+
+  socket.on('inviteUserToEvent', async ({token, user_id, event_id}) => {
     console.log(`Inviting user with id ${user_id} to event with id ${event_id}` )
-    await createInvitation(user_id, event_id)
-    sendInvitationsListToAllClients(io)
+    const verified = jwt.verify(token)
+    if (verified) {
+      await createInvitation(user_id, event_id)
+      sendInvitationsListToAllClients(io)
+    }
   })
 
-  socket.on('acceptInvitation', async ({user_id, event_id}) => {
+  socket.on('acceptInvitation', async ({token, user_id, event_id}) => {
     console.log(`User with id ${user_id} accepting invitation to event with id ${event_id}` )
-    await acceptInvitation(user_id, event_id)
-    sendInvitationsListToAllClients(io)
-  })
-
-  socket.on('placeTextEntered', async ({text}) => {
-    console.log(`Searching for places with name ${text}`)
-    
-    const apiKey = process.env.GOOGLE_API_KEY
-    const latitude = "29.747055"
-    const longitude = "-95.372617"
-    const response = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${text}&key=${apiKey}&location=${latitude},${longitude}&types=establishment`)
-    const result = await response.json()
-    if (result.status === "OK") {
-      const locations = result.predictions.map(prediction => ({placeName: prediction.description, placeID: prediction.place_id}))
-      console.log(`Returning ${locations.length} matches`)
-      socket.emit("placeNameMatches", locations)
-    } else {
-      console.error(`Place search request failed for unclear reasons because I don't write clear error messages`)
+    const verified = jwt.verify(token)
+    if (verified) {
+      await acceptInvitation(user_id, event_id)
+      sendInvitationsListToAllClients(io)
     }
   })
 
-  socket.on('suggestPlace', async ({user_id, place_id, place_name, event_id}) => {
-    console.log(`User with id ${user_id} trying to suggest "${place_name}" (id ${place_id}) for event with id ${event_id}`)
-    await suggestPlace(user_id, event_id, place_id, place_name)
-    sendPlaceSuggestionsToAllClients(io)
+  socket.on('placeTextEntered', async ({token, text}) => {
+    const verified = jwt.verify(token)
+    if (verified) {
+      console.log(`Searching for places with name ${text}`)
+      
+      const apiKey = process.env.GOOGLE_API_KEY
+      const latitude = "29.747055"
+      const longitude = "-95.372617"
+      const response = await fetch(`https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${text}&key=${apiKey}&location=${latitude},${longitude}&types=establishment`)
+      const result = await response.json()
+      if (result.status === "OK") {
+        const locations = result.predictions.map(prediction => ({placeName: prediction.description, placeID: prediction.place_id}))
+        console.log(`Returning ${locations.length} matches`)
+        socket.emit("placeNameMatches", locations)
+      } else {
+        console.error(`Place search request failed for unclear reasons because I don't write clear error messages`)
+      }
+    }
   })
 
-  socket.on('voteForPlace', async ({user_id, place_id, event_id, setVoteTo}) => {
-    if (setVoteTo) {
-      console.log(`User with id ${user_id} voting for place with id ${place_id}) for event with id ${event_id}`)
-      await voteForPlace(user_id, event_id, place_id)
-    } else {
-      console.log(`User with id ${user_id} removing vote for place with id ${place_id}) for event with id ${event_id}`)
-      await removeVoteForPlace(user_id, event_id, place_id)
+  socket.on('suggestPlace', async ({token, user_id, place_id, place_name, event_id}) => {
+    const verified = jwt.verify(token)
+    if (verified) {
+      console.log(`User with id ${user_id} trying to suggest "${place_name}" (id ${place_id}) for event with id ${event_id}`)
+      await suggestPlace(user_id, event_id, place_id, place_name)
+      sendPlaceSuggestionsToAllClients(io)
     }
-    sendPlaceSuggestionsToAllClients(io)
+  })
+
+  socket.on('voteForPlace', async ({token, user_id, place_id, event_id, setVoteTo}) => {
+    const verified = jwt.verify(token)
+    if (verified) {
+      if (setVoteTo) {
+        console.log(`User with id ${user_id} voting for place with id ${place_id}) for event with id ${event_id}`)
+        await voteForPlace(user_id, event_id, place_id)
+      } else {
+        console.log(`User with id ${user_id} removing vote for place with id ${place_id}) for event with id ${event_id}`)
+        await removeVoteForPlace(user_id, event_id, place_id)
+      }
+      sendPlaceSuggestionsToAllClients(io)
+    }
   })
 
   socket.on('disconnect', function(){
     console.log('user disconnected');
   });
+}
+
+const emitLoginResult = (user, socket) => {
+  if (user !== null) {
+    delete user.created_on
+    delete user.password_hash
+    user.token = jwt.login(user.name)
+    socket.emit("loggedIn", {user})
+  } else {
+    socket.emit("signUpOrLoginFailed") // this isn't handled lol
+  }
 }
 
 const sendInitialDataToConnectingClient = async (socket) => {
