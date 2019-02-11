@@ -9,7 +9,7 @@ const app = express()
 const setupSockets = async () => {
   const http = require('http').Server(app);
 
-  const port = 3000
+  const port = 3001
   const server = http.listen(port, function(){
     console.log(`listening on *:${port}`);
   });
