@@ -1,4 +1,4 @@
-const {insert, selectOne, selectMultiple, update} = require('./dbfunctions.js')
+const {insert, selectOne, selectMultiple, update, remove} = require('./dbfunctions.js')
 const fetch = require('node-fetch');
 
 var express = require('express');
@@ -76,9 +76,14 @@ const registerSocketEvents = (io, socket) => {
     sendPlaceSuggestionsToAllClients(io)
   })
 
-  socket.on('voteForPlace', async ({user_id, place_id, event_id}) => {
-    console.log(`User with id ${user_id} trying to vote for place with id ${place_id}) for event with id ${event_id}`)
-    await voteForPlace(user_id, event_id, place_id)
+  socket.on('voteForPlace', async ({user_id, place_id, event_id, setVoteTo}) => {
+    if (setVoteTo) {
+      console.log(`User with id ${user_id} voting for place with id ${place_id}) for event with id ${event_id}`)
+      await voteForPlace(user_id, event_id, place_id)
+    } else {
+      console.log(`User with id ${user_id} removing vote for place with id ${place_id}) for event with id ${event_id}`)
+      await removeVoteForPlace(user_id, event_id, place_id)
+    }
     sendPlaceSuggestionsToAllClients(io)
   })
 
@@ -190,7 +195,8 @@ const getVotesForPlace = (suggestion) => {
       keys: ["google_place_id", "event_id"],
       values: [suggestion.google_place_id, suggestion.event_id]
     })
-    resolve(votes.length)
+    delete votes.created_on
+    resolve(votes)
   })
 }
 
@@ -305,7 +311,7 @@ const createNewPlace = async (place_id, place_name) => {
 }
 
 const voteForPlace = async (user_id, event_id, place_id) => {
-  let [error, result] = await insert({tableName: "place_votes", columns: [
+  const [error, result] = await insert({tableName: "place_votes", columns: [
     "user_id",
     "event_id",
     "google_place_id",
@@ -321,6 +327,15 @@ const voteForPlace = async (user_id, event_id, place_id) => {
     null,
     null,
     "to_timestamp"
+  ]})
+  return error === null
+}
+
+const removeVoteForPlace = async (user_id, event_id, place_id) => {
+  const [error, result] = await remove({tableName: "place_votes", conditions: [
+    {name: "user_id", value: user_id},
+    {name: "event_id", value: event_id},
+    {name: "google_place_id", value: place_id}
   ]})
   return error === null
 }

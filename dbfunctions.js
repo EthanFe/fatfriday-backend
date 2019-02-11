@@ -53,4 +53,13 @@ const update = async ({tableName, conditions = [], valuesToSet = []}) => {
   return catchAsync(db.none(query, valuesToSet.map(column => column.value).concat(conditions.map(condition => condition.value))))
 }
 
-module.exports = { insert, selectOne, selectMultiple, update }
+const remove = async ({tableName, conditions = []}) => {
+  let query = `DELETE FROM ${tableName} WHERE `
+
+  query += conditions.map((condition, index) => {
+    return `${condition.name}=$${index + 1}`
+  }).join(" AND ")
+  return catchAsync(db.one(query, conditions.map(condition => condition.value)))
+}
+
+module.exports = { insert, selectOne, selectMultiple, update, remove }
