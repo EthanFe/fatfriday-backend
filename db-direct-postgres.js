@@ -19,6 +19,7 @@ console.log("Initializing users table")
 const createUsersTableQuery = `
   CREATE TABLE IF NOT EXISTS users(
     name TEXT UNIQUE NOT NULL check (name <> ''),
+    password_hash TEXT NOT NULL,
     address TEXT,
     created_on TIMESTAMP NOT NULL,
     id SERIAL PRIMARY KEY

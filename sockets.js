@@ -1,4 +1,5 @@
-const {insert, selectOne, selectMultiple, update, remove} = require('./dbfunctions.js')
+const {db} = require('./dbfunctions.js')
+const {createNewUser, attemptLogin} = require ('./authentication.js')
 const fetch = require('node-fetch');
 
 var express = require('express');
@@ -30,14 +31,25 @@ const registerSocketEvents = (io, socket) => {
     sendEventsListToAllClients(io)
   });
 
-  socket.on('login', async ({username}) => {
+  socket.on('login', async ({username, password}) => {
     console.log(`User attempting to login with name "${username}"`)
-    const user = await loginUser(username)
+    const user = await attemptLogin(username, password)
     if (user !== null) {
       delete user.created_on
       socket.emit("loggedIn", user)
     } else {
       socket.emit("loginFailed") // this isn't handled lol
+    }
+  })
+
+  socket.on('signUp', async ({username, password}) => {
+    console.log(`User attempting to sign up with name "${username}"`)
+    const user = await createNewUser(username, password)
+    if (user !== null) {
+      delete user.created_on
+      socket.emit("loggedIn", user)
+    } else {
+      socket.emit("signUpFailed") // this isn't handled lol
     }
   })
 
@@ -129,7 +141,7 @@ const sendPlaceSuggestionsToAllClients = async (io) => {
 }
 
 const createEvent = (eventName, user_id, date) => {
-  return insert({tableName: "events", columns: [
+  return db.insert({tableName: "events", columns: [
       "created_by",
       "name",
       "event_date",
@@ -150,25 +162,25 @@ const createEvent = (eventName, user_id, date) => {
 
 const getEventsList = () => {
   return new Promise((resolve) => {
-    resolve(selectMultiple({tableName: "events"}))
+    resolve(db.selectMultiple({tableName: "events"}))
   })
 }
 
 const getUsersList = () => {
   return new Promise((resolve) => {
-    resolve(selectMultiple({tableName: "users"}))
+    resolve(db.selectMultiple({tableName: "users"}))
   })
 }
 
 const getInvitesList = () => {
   return new Promise((resolve) => {
-    resolve(selectMultiple({tableName: "event_invites"}))
+    resolve(db.selectMultiple({tableName: "event_invites"}))
   })
 }
 
 const getPlaceSuggestions = () => {
   return new Promise(async (resolve) => {
-    let placeSuggestions = await selectMultiple({tableName: "place_suggestions"})
+    let placeSuggestions = await db.selectMultiple({tableName: "place_suggestions"})
 
     placeSuggestions = await Promise.all(placeSuggestions.map(async (suggestion) => {
       suggestion.name = await getNameOfPlaceSuggestion(suggestion)
@@ -183,14 +195,14 @@ const getPlaceSuggestions = () => {
 }
 
 const getNameOfPlaceSuggestion = async (suggestion) => {
-  const place = await selectOne({tableName: "places", keys: ["google_place_id"], values: [suggestion.google_place_id]})
+  const place = await db.selectOne({tableName: "places", keys: ["google_place_id"], values: [suggestion.google_place_id]})
   return place.place_name
 }
 
 const getVotesForPlace = (suggestion) => {
   return new Promise(async (resolve) => {
-    // this will probably throw an error if there are no votes. i really gotta fix selectmultiple
-    const votes = await selectMultiple({
+    // this will probably throw an error if there are no votes. i really gotta fix db.selectMultiple
+    const votes = await db.selectMultiple({
       tableName: "place_votes",
       keys: ["google_place_id", "event_id"],
       values: [suggestion.google_place_id, suggestion.event_id]
@@ -200,35 +212,8 @@ const getVotesForPlace = (suggestion) => {
   })
 }
 
-const loginUser = async (username) => {
-  let user = await selectOne({tableName: "users", keys: ["name"], values: [username]})
-  if (user === null) {
-    user = await createNewUser(username)
-  }
-  return user
-}
-
-const createNewUser = async (username) => {
-  let [error, result] = await insert({tableName: "users", columns: [
-    "name",
-    "created_on"
-  ], values: [
-    username,
-    new Date().getTime() / 1000
-  ],
-  modifiers: [
-    null,
-    "to_timestamp"
-  ]})
-  if (error === null) {
-    return await selectOne({tableName: "users", keys: ["name"], values: [username]})
-  } else {
-    return null
-  }
-}
-
 const createInvitation = async (user_id, event_id) => {
-  let [error, result] = await insert({tableName: "event_invites", columns: [
+  let [error, result] = await db.insert({tableName: "event_invites", columns: [
     "user_id",
     "event_id",
     "accepted",
@@ -249,7 +234,7 @@ const createInvitation = async (user_id, event_id) => {
 }
 
 const acceptInvitation = async (user_id, event_id) => {
-  const [error, result] = await update({tableName: "event_invites", conditions: [
+  const [error, result] = await db.update({tableName: "event_invites", conditions: [
     {name: "user_id", value: user_id},
     {name: "event_id", value: event_id}
   ], valuesToSet: [
@@ -262,7 +247,7 @@ const suggestPlace = async (user_id, event_id, place_id, place_name) => {
   // user_id is unused but should be used to verify whether user is actually a member of event/allowed to suggest places
 
   // this throws an error because it doesn't find anything. lol
-  let place = await selectOne({tableName: "places", keys: ["google_place_id"], values: [place_id]})
+  let place = await db.selectOne({tableName: "places", keys: ["google_place_id"], values: [place_id]})
   if (place === null) {
     place = await createNewPlace(place_id, place_name)
   }
@@ -270,7 +255,7 @@ const suggestPlace = async (user_id, event_id, place_id, place_name) => {
     console.error("Creating new place entry failed. Did not create new place suggestion.")
     return false
   } else {
-    let [error, result] = await insert({tableName: "place_suggestions", columns: [
+    let [error, result] = await db.insert({tableName: "place_suggestions", columns: [
       "event_id",
       "google_place_id",
       "created_on"
@@ -289,7 +274,7 @@ const suggestPlace = async (user_id, event_id, place_id, place_name) => {
 }
 
 const createNewPlace = async (place_id, place_name) => {
-  let [error, result] = await insert({tableName: "places", columns: [
+  let [error, result] = await db.insert({tableName: "places", columns: [
     "google_place_id",
     "place_name",
     "created_on"
@@ -304,14 +289,14 @@ const createNewPlace = async (place_id, place_name) => {
     "to_timestamp"
   ]})
   if (error === null) {
-    return await selectOne({tableName: "places", keys: ["google_place_id"], values: [place_id]})
+    return await db.selectOne({tableName: "places", keys: ["google_place_id"], values: [place_id]})
   } else {
     return null
   }
 }
 
 const voteForPlace = async (user_id, event_id, place_id) => {
-  const [error, result] = await insert({tableName: "place_votes", columns: [
+  const [error, result] = await db.insert({tableName: "place_votes", columns: [
     "user_id",
     "event_id",
     "google_place_id",
@@ -332,7 +317,7 @@ const voteForPlace = async (user_id, event_id, place_id) => {
 }
 
 const removeVoteForPlace = async (user_id, event_id, place_id) => {
-  const [error, result] = await remove({tableName: "place_votes", conditions: [
+  const [error, result] = await db.remove({tableName: "place_votes", conditions: [
     {name: "user_id", value: user_id},
     {name: "event_id", value: event_id},
     {name: "google_place_id", value: place_id}
