@@ -131,6 +131,7 @@ const sendInitialDataToConnectingClient = async (socket) => {
   users = users.map(user => {
     delete user.created_on
     delete user.address
+    delete user.password_hash
     return user
   })
   let invites = await getInvitesList()
