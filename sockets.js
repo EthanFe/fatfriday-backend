@@ -3,12 +3,7 @@ const {jwt} = require('./jwt.js')
 const {createNewUser, attemptLogin} = require ('./authentication.js')
 const fetch = require('node-fetch');
 
-var express = require('express');
-const app = express()
-
-const setupSockets = async () => {
-  const http = require('http').Server(app);
-
+const setupSockets = async (http) => {
   const port = 3001
   const server = http.listen(port, function(){
     console.log(`listening on *:${port}`);

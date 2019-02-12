@@ -4,10 +4,11 @@ var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
 
-const {setupSockets} = require('./sockets.js')
-setupSockets()
-
 var app = express();
+const http = require('http').Server(app);
+
+const {setupSockets} = require('./sockets.js')
+setupSockets(http)
 
 app.use(logger('dev'));
 app.use(express.json());
