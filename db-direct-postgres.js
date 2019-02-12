@@ -1,6 +1,6 @@
 var pgp = require('pg-promise')(/*options*/)
 
-var db = pgp('postgres://localhost:5432/fatfriday-test')
+var db = pgp('postgres://localhost:5432/fatfriday')
 
 console.log("Initializing events table")
 const createEventsTableQuery = `
