@@ -32,6 +32,7 @@ const registerSocketEvents = (io, socket) => {
     console.log(`User attempting to sign up with name "${username}"`)
     const user = await createNewUser(username, password)
     emitLoginResult(user, socket)
+    sendUsersListToAllClients(io)
   })
 
   socket.on('createNewEvent', async function({token, name, user_id, date}) {
@@ -125,6 +126,7 @@ const sendInitialDataToConnectingClient = async (socket) => {
   users = users.map(user => {
     delete user.created_on
     delete user.address
+    delete user.password_hash
     return user
   })
   let invites = await getInvitesList()
@@ -153,6 +155,16 @@ const sendInvitationsListToAllClients = async (io) => {
 const sendPlaceSuggestionsToAllClients = async (io) => {
   const placeSuggestions = await getPlaceSuggestions()
   io.emit("placeSuggestions", placeSuggestions)
+}
+
+const sendUsersListToAllClients= async (io) => {
+  let users = await getUsersList()
+  users = users.map(user => {
+    delete user.created_on
+    delete user.address
+    return user
+  })
+  io.emit("invitableUsersList", users)
 }
 
 const createEvent = (eventName, user_id, date) => {
@@ -222,6 +234,7 @@ const getVotesForPlace = (suggestion) => {
       keys: ["google_place_id", "event_id"],
       values: [suggestion.google_place_id, suggestion.event_id]
     })
+    // something feels like this doesnt make any fucking sense because this is an array, not an object. 🤔
     delete votes.created_on
     resolve(votes)
   })
@@ -259,8 +272,6 @@ const acceptInvitation = async (user_id, event_id) => {
 }
 
 const suggestPlace = async (user_id, event_id, place_id, place_name) => {
-  // user_id is unused but should be used to verify whether user is actually a member of event/allowed to suggest places
-
   // this throws an error because it doesn't find anything. lol
   let place = await db.selectOne({tableName: "places", keys: ["google_place_id"], values: [place_id]})
   if (place === null) {
@@ -284,6 +295,8 @@ const suggestPlace = async (user_id, event_id, place_id, place_name) => {
       null,
       "to_timestamp"
     ]})
+
+    voteForPlace(user_id, event_id, place_id)
     return error === null
   }
 }
@@ -334,6 +347,23 @@ const voteForPlace = async (user_id, event_id, place_id) => {
 const removeVoteForPlace = async (user_id, event_id, place_id) => {
   const [error, result] = await db.remove({tableName: "place_votes", conditions: [
     {name: "user_id", value: user_id},
+    {name: "event_id", value: event_id},
+    {name: "google_place_id", value: place_id}
+  ]})
+  // this is sorta weird and feels redundant with getVotesForPlace(). idk
+  const remainingVotes = await db.selectMultiple({
+    tableName: "place_votes",
+    keys: ["google_place_id", "event_id"],
+    values: [place_id, event_id]
+  })
+  if (remainingVotes.length < 1) {
+    await removePlaceSuggestion(event_id, place_id)
+  }
+  return error === null
+}
+
+const removePlaceSuggestion = async (event_id, place_id) => {
+  const [error, result] = await db.remove({tableName: "place_suggestions", conditions: [
     {name: "event_id", value: event_id},
     {name: "google_place_id", value: place_id}
   ]})
