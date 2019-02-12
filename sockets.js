@@ -275,8 +275,6 @@ const acceptInvitation = async (user_id, event_id) => {
 }
 
 const suggestPlace = async (user_id, event_id, place_id, place_name) => {
-  // user_id is unused but should be used to verify whether user is actually a member of event/allowed to suggest places
-
   // this throws an error because it doesn't find anything. lol
   let place = await db.selectOne({tableName: "places", keys: ["google_place_id"], values: [place_id]})
   if (place === null) {
@@ -300,6 +298,8 @@ const suggestPlace = async (user_id, event_id, place_id, place_name) => {
       null,
       "to_timestamp"
     ]})
+
+    voteForPlace(user_id, event_id, place_id)
     return error === null
   }
 }
