@@ -238,6 +238,7 @@ const getVotesForPlace = (suggestion) => {
       keys: ["google_place_id", "event_id"],
       values: [suggestion.google_place_id, suggestion.event_id]
     })
+    // something feels like this doesnt make any fucking sense because this is an array, not an object. 🤔
     delete votes.created_on
     resolve(votes)
   })
@@ -350,6 +351,23 @@ const voteForPlace = async (user_id, event_id, place_id) => {
 const removeVoteForPlace = async (user_id, event_id, place_id) => {
   const [error, result] = await db.remove({tableName: "place_votes", conditions: [
     {name: "user_id", value: user_id},
+    {name: "event_id", value: event_id},
+    {name: "google_place_id", value: place_id}
+  ]})
+  // this is sorta weird and feels redundant with getVotesForPlace(). idk
+  const remainingVotes = await db.selectMultiple({
+    tableName: "place_votes",
+    keys: ["google_place_id", "event_id"],
+    values: [place_id, event_id]
+  })
+  if (remainingVotes.length < 1) {
+    await removePlaceSuggestion(event_id, place_id)
+  }
+  return error === null
+}
+
+const removePlaceSuggestion = async (event_id, place_id) => {
+  const [error, result] = await db.remove({tableName: "place_suggestions", conditions: [
     {name: "event_id", value: event_id},
     {name: "google_place_id", value: place_id}
   ]})
