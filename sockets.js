@@ -37,6 +37,7 @@ const registerSocketEvents = (io, socket) => {
     console.log(`User attempting to sign up with name "${username}"`)
     const user = await createNewUser(username, password)
     emitLoginResult(user, socket)
+    sendUsersListToAllClients(io)
   })
 
   socket.on('createNewEvent', async function({token, name, user_id, date}) {
@@ -158,6 +159,16 @@ const sendInvitationsListToAllClients = async (io) => {
 const sendPlaceSuggestionsToAllClients = async (io) => {
   const placeSuggestions = await getPlaceSuggestions()
   io.emit("placeSuggestions", placeSuggestions)
+}
+
+const sendUsersListToAllClients= async (io) => {
+  let users = await getUsersList()
+  users = users.map(user => {
+    delete user.created_on
+    delete user.address
+    return user
+  })
+  io.emit("invitableUsersList", users)
 }
 
 const createEvent = (eventName, user_id, date) => {
