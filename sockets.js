@@ -4,7 +4,7 @@ const {createNewUser, attemptLogin} = require ('./authentication.js')
 const fetch = require('node-fetch');
 
 const setupSockets = async (http) => {
-  const port = 3001
+  const port = process.env.PORT || '3000'
   const server = http.listen(port, function(){
     console.log(`listening on *:${port}`);
   });
