@@ -36,33 +36,33 @@ const registerSocketEvents = (io, socket) => {
   })
 
   socket.on('createNewEvent', async function({token, name, user_id, date}) {
-    const verified = jwt.verify(token)
+    const verified = jwt.verify(token, user_id)
     if (verified) {
       await createEvent(name, user_id, date)
       sendEventsListToAllClients(io)
     }
   });
 
-  socket.on('inviteUserToEvent', async ({token, user_id, event_id}) => {
-    console.log(`Inviting user with id ${user_id} to event with id ${event_id}` )
-    const verified = jwt.verify(token)
+  socket.on('inviteUserToEvent', async ({token, user_id, invitee_user_id, event_id}) => {
+    console.log(`Inviting user with id ${invitee_user_id} to event with id ${event_id}` )
+    const verified = jwt.verify(token, user_id)
     if (verified) {
-      await createInvitation(user_id, event_id)
+      await createInvitation(invitee_user_id, event_id)
       sendInvitationsListToAllClients(io)
     }
   })
 
   socket.on('acceptInvitation', async ({token, user_id, event_id}) => {
     console.log(`User with id ${user_id} accepting invitation to event with id ${event_id}` )
-    const verified = jwt.verify(token)
+    const verified = jwt.verify(token, user_id)
     if (verified) {
       await acceptInvitation(user_id, event_id)
       sendInvitationsListToAllClients(io)
     }
   })
 
-  socket.on('placeTextEntered', async ({token, text}) => {
-    const verified = jwt.verify(token)
+  socket.on('placeTextEntered', async ({token, user_id, text}) => {
+    const verified = jwt.verify(token, user_id)
     if (verified) {
       console.log(`Searching for places with name ${text}`)
       
@@ -82,7 +82,7 @@ const registerSocketEvents = (io, socket) => {
   })
 
   socket.on('suggestPlace', async ({token, user_id, place_id, place_name, event_id}) => {
-    const verified = jwt.verify(token)
+    const verified = jwt.verify(token, user_id)
     if (verified) {
       console.log(`User with id ${user_id} trying to suggest "${place_name}" (id ${place_id}) for event with id ${event_id}`)
       await suggestPlace(user_id, event_id, place_id, place_name)
@@ -91,7 +91,7 @@ const registerSocketEvents = (io, socket) => {
   })
 
   socket.on('voteForPlace', async ({token, user_id, place_id, event_id, setVoteTo}) => {
-    const verified = jwt.verify(token)
+    const verified = jwt.verify(token, user_id)
     if (verified) {
       if (setVoteTo) {
         console.log(`User with id ${user_id} voting for place with id ${place_id}) for event with id ${event_id}`)
@@ -113,7 +113,7 @@ const emitLoginResult = (user, socket) => {
   if (user !== null) {
     delete user.created_on
     delete user.password_hash
-    user.token = jwt.login(user.name)
+    user.token = jwt.login(user.id)
     socket.emit("loggedIn", {user})
   } else {
     socket.emit("signUpOrLoginFailed") // this isn't handled lol
