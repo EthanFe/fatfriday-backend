@@ -104,6 +104,19 @@ const registerSocketEvents = (io, socket) => {
     }
   })
 
+  socket.on('removeEvent', async ({token, user_id, event_id}) => {
+    const verified = jwt.verify(token, user_id)
+    if (verified) {
+      const removed = await removeEvent(event_id, user_id)
+      if (removed) {
+        sendEventsListToAllClients(io)
+        sendInvitationsListToAllClients(io)
+        sendPlaceSuggestionsToAllClients(io)
+        // is all this necessary? who knows. it's a mystery. but i'm lazy
+      }
+    }
+  })
+
   socket.on('disconnect', function(){
     console.log('user disconnected');
   });
@@ -368,4 +381,18 @@ const removePlaceSuggestion = async (event_id, place_id) => {
     {name: "google_place_id", value: place_id}
   ]})
   return error === null
+}
+
+const removeEvent = async (event_id, user_id) => {
+  const event = await db.selectOne({tableName: "events", keys: ["id", "created_by"], values: [event_id, user_id]})
+  if (event !== null) {
+    const [error, result] = await db.remove({tableName: "events", conditions: [
+      {name: "id", value: event_id},
+      {name: "created_by", value: user_id}
+    ]})
+    console.log(error)
+    return error === null
+  } else {
+    return false
+  }
 }

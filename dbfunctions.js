@@ -60,7 +60,7 @@ const functions = {
     query += conditions.map((condition, index) => {
       return `${condition.name}=$${index + 1}`
     }).join(" AND ")
-    return catchAsync(db.one(query, conditions.map(condition => condition.value)))
+    return catchAsync(db.none(query, conditions.map(condition => condition.value)))
   },
 }
 
