@@ -77,6 +77,19 @@ const dbSetup = async () => {
   `
   db.none(createPlaceVotesTableQuery)
   .catch(error => { console.log('ERROR:', error) })
+
+  console.log("Initializing messages table")
+  const createMessagesTableQuery = `
+    CREATE TABLE IF NOT EXISTS messages(
+      user_id int4 NOT NULL,
+      event_id int4 NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+      message_body TEXT NOT NULL,
+      created_on TIMESTAMP NOT NULL,
+      id SERIAL PRIMARY KEY
+    );
+  `
+  db.none(createMessagesTableQuery)
+  .catch(error => { console.log('ERROR:', error) })
 }
 
 dbSetup()

@@ -112,8 +112,17 @@ const registerSocketEvents = (io, socket) => {
         sendEventsListToAllClients(io)
         sendInvitationsListToAllClients(io)
         sendPlaceSuggestionsToAllClients(io)
+        sendMessagesListToAllClients(io)
         // is all this necessary? who knows. it's a mystery. but i'm lazy
       }
+    }
+  })
+
+  socket.on('sendMessage', async ({token, user_id, event_id, message}) => {
+    const verified = jwt.verify(token, user_id)
+    if (verified) {
+      await sendMessage(event_id, user_id, message)
+      sendMessagesListToAllClients(io)
     }
   })
 
@@ -148,7 +157,8 @@ const sendInitialDataToConnectingClient = async (socket) => {
     return invite
   })
   const placeSuggestions = await getPlaceSuggestions()
-  socket.emit("initialData", {events, users, invites, placeSuggestions})
+  const messages = await getMessages()
+  socket.emit("initialData", {events, users, invites, placeSuggestions, messages})
 }
 
 const sendEventsListToAllClients = async (io) => {
@@ -170,7 +180,7 @@ const sendPlaceSuggestionsToAllClients = async (io) => {
   io.emit("placeSuggestions", placeSuggestions)
 }
 
-const sendUsersListToAllClients= async (io) => {
+const sendUsersListToAllClients = async (io) => {
   let users = await getUsersList()
   users = users.map(user => {
     delete user.created_on
@@ -178,6 +188,11 @@ const sendUsersListToAllClients= async (io) => {
     return user
   })
   io.emit("invitableUsersList", users)
+}
+
+const sendMessagesListToAllClients = async (io) => {
+  const messages = await getMessages()
+  io.emit("messages", messages)
 }
 
 const createEvent = (eventName, user_id, date) => {
@@ -250,6 +265,12 @@ const getVotesForPlace = (suggestion) => {
     // something feels like this doesnt make any fucking sense because this is an array, not an object. 🤔
     delete votes.created_on
     resolve(votes)
+  })
+}
+
+const getMessages = () => {
+  return new Promise((resolve) => {
+    resolve(db.selectMultiple({tableName: "messages"}))
   })
 }
 
@@ -395,4 +416,25 @@ const removeEvent = async (event_id, user_id) => {
   } else {
     return false
   }
+}
+
+const sendMessage = async (event_id, user_id, message) => {
+  const [error, result] = await db.insert({tableName: "messages", columns: [
+    "user_id",
+    "event_id",
+    "message_body",
+    "created_on"
+  ], values: [
+    user_id,
+    event_id,
+    message,
+    new Date().getTime() / 1000
+  ],
+  modifiers: [
+    null,
+    null,
+    null,
+    "to_timestamp"
+  ]})
+  return error === null
 }
