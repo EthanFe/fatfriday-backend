@@ -21,18 +21,30 @@ const setupSockets = async (http) => {
 
 module.exports = {setupSockets};
 
+const onlineUsers = []
+
 const registerSocketEvents = (io, socket) => {
   socket.on('login', async ({username, password}) => {
     console.log(`User attempting to login with name "${username}"`)
     const user = await attemptLogin(username, password)
     emitLoginResult(user, socket)
+    addToOnlineUsers(user.id, socket, io)
   })
 
   socket.on('signUp', async ({username, password}) => {
     console.log(`User attempting to sign up with name "${username}"`)
     const user = await createNewUser(username, password)
     emitLoginResult(user, socket)
+    addToOnlineUsers(user.id, socket, io)
     sendUsersListToAllClients(io)
+  })
+
+  socket.on("logout", async ({token, user_id}) => {
+    const verified = jwt.verify(token, user_id)
+    if (verified) {
+      removeFromOnlineUsers(user_id, socket, io)
+      sendUsersListToAllClients(io)
+    }
   })
 
   socket.on('createNewEvent', async function({token, name, user_id, date}) {
@@ -128,6 +140,7 @@ const registerSocketEvents = (io, socket) => {
 
   socket.on('disconnect', function(){
     console.log('user disconnected');
+    removeFromOnlineUsers(null, socket, io)
   });
 }
 
@@ -139,6 +152,27 @@ const emitLoginResult = (user, socket) => {
     socket.emit("loggedIn", {user})
   } else {
     socket.emit("signUpOrLoginFailed") // this isn't handled lol
+  }
+}
+
+const addToOnlineUsers = (userID, socket, io) => {
+  const onlineUser = onlineUsers.find(user => user.userID === userID)
+  if (onlineUser === undefined) {
+    onlineUsers.push({userID: userID, socketID: socket.id})
+    sendOnlineUsersListToAllClients(io)
+  } else {
+    if (onlineUser.socketID !== socket.id) { // not sure when this would be false but maybe it'll be useful at some point
+      onlineUser.socketID = socket.id
+    }
+  }
+}
+
+const removeFromOnlineUsers = (userID, socket, io) => {
+  console.log(onlineUsers)
+  const onlineUser = onlineUsers.find(user => user.socketID === socket.id)
+  if (onlineUser !== undefined) {
+    onlineUsers.splice(onlineUsers.indexOf(onlineUser), 1)
+    sendOnlineUsersListToAllClients(io)
   }
 }
 
@@ -158,7 +192,8 @@ const sendInitialDataToConnectingClient = async (socket) => {
   })
   const placeSuggestions = await getPlaceSuggestions()
   const messages = await getMessages()
-  socket.emit("initialData", {events, users, invites, placeSuggestions, messages})
+  const onlineUserIDs = onlineUsers.map(onlineUser => onlineUser.userID)
+  socket.emit("initialData", {events, users, invites, placeSuggestions, messages, onlineUserIDs})
 }
 
 const sendEventsListToAllClients = async (io) => {
@@ -193,6 +228,11 @@ const sendUsersListToAllClients = async (io) => {
 const sendMessagesListToAllClients = async (io) => {
   const messages = await getMessages()
   io.emit("messages", messages)
+}
+
+const sendOnlineUsersListToAllClients = async (io) => {
+  const onlineUserIDs = onlineUsers.map(onlineUser => onlineUser.userID)
+  io.emit("onlineUsers", onlineUserIDs)
 }
 
 const createEvent = (eventName, user_id, date) => {
