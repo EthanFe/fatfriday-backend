@@ -168,7 +168,6 @@ const addToOnlineUsers = (userID, socket, io) => {
 }
 
 const removeFromOnlineUsers = (userID, socket, io) => {
-  console.log(onlineUsers)
   const onlineUser = onlineUsers.find(user => user.socketID === socket.id)
   if (onlineUser !== undefined) {
     onlineUsers.splice(onlineUsers.indexOf(onlineUser), 1)
@@ -278,7 +277,7 @@ const getPlaceSuggestions = () => {
     let placeSuggestions = await db.selectMultiple({tableName: "place_suggestions"})
 
     placeSuggestions = await Promise.all(placeSuggestions.map(async (suggestion) => {
-      suggestion.name = await getNameOfPlaceSuggestion(suggestion)
+      suggestion.placeData = await getDataOfPlaceSuggestion(suggestion)
       return suggestion
     }))
     placeSuggestions = await Promise.all(placeSuggestions.map(async (suggestion) => {
@@ -289,9 +288,9 @@ const getPlaceSuggestions = () => {
   })
 }
 
-const getNameOfPlaceSuggestion = async (suggestion) => {
+const getDataOfPlaceSuggestion = async (suggestion) => {
   const place = await db.selectOne({tableName: "places", keys: ["google_place_id"], values: [suggestion.google_place_id]})
-  return place.place_name
+  return {name: place.place_name, location: {latitude: place.latitude, longitude: place.longitude}}
 }
 
 const getVotesForPlace = (suggestion) => {
@@ -376,16 +375,31 @@ const suggestPlace = async (user_id, event_id, place_id, place_name) => {
 }
 
 const createNewPlace = async (place_id, place_name) => {
+  const apiKey = process.env.GOOGLE_API_KEY
+  const response = await fetch(`https://maps.googleapis.com/maps/api/place/details/json?key=${apiKey}&placeid=${place_id}&fields=geometry`)
+  const json = await response.json()
+  let latitude, longitude = null
+  if (json.status === "OK") {
+    const location = json.result.geometry.location
+    latitude = location.lat
+    longitude = location.lng
+  }
   let [error, result] = await db.insert({tableName: "places", columns: [
     "google_place_id",
     "place_name",
+    "latitude",
+    "longitude",
     "created_on"
   ], values: [
     place_id,
     place_name,
+    latitude,
+    longitude,
     new Date().getTime() / 1000
   ],
   modifiers: [
+    null,
+    null,
     null,
     null,
     "to_timestamp"
@@ -393,6 +407,8 @@ const createNewPlace = async (place_id, place_name) => {
   if (error === null) {
     return await db.selectOne({tableName: "places", keys: ["google_place_id"], values: [place_id]})
   } else {
+    console.error("Error creating new place")
+    console.error(error)
     return null
   }
 }
