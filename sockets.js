@@ -85,6 +85,7 @@ const registerSocketEvents = (io, socket) => {
       console.log(`sending fetch request to ${request}`)
       const response = await fetch(request)
       const result = await response.json()
+      console.log(result)
       if (result.status === "OK") {
         const locations = result.predictions.map(prediction => ({placeName: prediction.description, placeID: prediction.place_id}))
         console.log(`Returning ${locations.length} matches:`)
