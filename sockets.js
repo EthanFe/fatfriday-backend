@@ -87,7 +87,10 @@ const registerSocketEvents = (io, socket) => {
       const result = await response.json()
       if (result.status === "OK") {
         const locations = result.predictions.map(prediction => ({placeName: prediction.description, placeID: prediction.place_id}))
-        console.log(`Returning ${locations.length} matches`)
+        console.log(`Returning ${locations.length} matches:`)
+        locations.forEach(location => {
+          console.log(`  Location: ${location.placeName}, id ${location.placeID}`)
+        })
         socket.emit("placeNameMatches", locations)
       } else {
         console.error(`Place search request failed for unclear reasons because I don't write clear error messages`)
