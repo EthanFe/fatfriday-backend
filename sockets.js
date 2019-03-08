@@ -81,8 +81,8 @@ const registerSocketEvents = (io, socket) => {
       const apiKey = process.env.GOOGLE_API_KEY
       const latitude = "29.747055"
       const longitude = "-95.372617"
-      const request = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${text}&key=${apiKey}&location=${latitude},${longitude}&types=establishment`
-      console.log(`sending fetch request to ${request}`)
+      const searchRadius = 5000
+      const request = `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${text}&key=${apiKey}&location=${latitude},${longitude}&radius=${searchRadius}&types=establishment`
       const response = await fetch(request)
       const result = await response.json()
       console.log(result)
