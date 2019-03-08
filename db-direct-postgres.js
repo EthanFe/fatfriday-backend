@@ -47,6 +47,8 @@ const dbSetup = async () => {
     CREATE TABLE IF NOT EXISTS places(
       google_place_id TEXT PRIMARY KEY,
       place_name TEXT NOT NULL,
+      latitude FLOAT8 NOT NULL,
+      longitude FLOAT8 NOT NULL,
       created_on TIMESTAMP NOT NULL
     );
   `
