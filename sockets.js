@@ -148,6 +148,16 @@ const registerSocketEvents = (io, socket) => {
     }
   })
 
+  socket.on('deleteMessage', async({token, user_id, message_id}) => {
+    const verified = jwt.verify(token, user_id)
+    if (verified) {
+      const messageDeleted = await deleteMessage(user_id, message_id)
+      if (messageDeleted) {
+        sendMessagesListToAllClients(io)
+      }
+    }
+  })
+
   socket.on('disconnect', function(){
     console.log('user disconnected');
     removeFromOnlineUsers(null, socket, io)
@@ -506,12 +516,19 @@ const sendMessage = async (event_id, user_id, message) => {
 }
 
 const editMessage = async (user_id, message_id, message) => {
-  console.log(user_id, message_id, message)
   const [error, result] = await db.update({tableName: "messages", conditions: [
     {name: "id", value: message_id},
     {name: "user_id", value: user_id}
   ], valuesToSet: [
     {name: "message_body", value: message}
+  ]})
+  return error === null
+}
+
+const deleteMessage = async (user_id, message_id) => {
+  const [error, result] = await db.remove({tableName: "messages", conditions: [
+    {name: "user_id", value: user_id},
+    {name: "id", value: message_id}
   ]})
   return error === null
 }
