@@ -47,7 +47,7 @@ const registerSocketEvents = (io, socket) => {
     }
   })
 
-  socket.on('createNewEvent', async function({token, name, user_id, date}) {
+  socket.on('createNewEvent', async function({token, user_id, name, date}) {
     const verified = jwt.verify(token, user_id)
     if (verified) {
       await createEvent(name, user_id, date)
@@ -214,7 +214,7 @@ const sendInitialDataToConnectingClient = async (socket) => {
   const placeSuggestions = await getPlaceSuggestions()
   const messages = await getMessages()
   const onlineUserIDs = onlineUsers.map(onlineUser => onlineUser.userID)
-  socket.emit("initialData", {events, users, invites, placeSuggestions, messages, onlineUserIDs})
+  socket.emit("initialData", {events, users, invites, placeSuggestions, messages, onlineUsers: onlineUserIDs})
 }
 
 const sendEventsListToAllClients = async (io) => {
